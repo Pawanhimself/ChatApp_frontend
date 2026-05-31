@@ -1,11 +1,24 @@
-const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api";
-const APP_URL  = import.meta.env.VITE_APP_URL  ?? "http://localhost:8000";
+const BASE_URL = import.meta.env.VITE_API_URL ?? "http://10.134.38.199:8000/api";
+const APP_URL  = import.meta.env.VITE_APP_URL  ?? "http://10.134.38.199:8000";
+
+// ✅ AbortController se fetch timeout implement karo
+// Mobile pe slow network mein request hang nahi karegi
+const fetchWithTimeout = (url, options = {}, ms = 8000) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return fetch(url, { ...options, signal: controller.signal })
+    .finally(() => clearTimeout(timer));
+};
 
 export const initCsrf = async () => {
-  await fetch(`${APP_URL}/sanctum/csrf-cookie`, {
-    method: "GET",
-    credentials: "include",
-  });
+  try {
+    await fetchWithTimeout(`${APP_URL}/sanctum/csrf-cookie`, {
+      method: "GET",
+      credentials: "include",
+    });
+  } catch {
+    // CSRF fail ho toh bhi aage chalo — request mein error aayega tab handle karenge
+  }
 };
 
 const getXsrfToken = () => {
@@ -18,6 +31,7 @@ const getXsrfToken = () => {
 
 const apiCall = async (endpoint, method = "GET", body = null) => {
   const xsrfToken = getXsrfToken();
+
   const options = {
     method,
     credentials: "include",
@@ -27,12 +41,17 @@ const apiCall = async (endpoint, method = "GET", body = null) => {
       ...(xsrfToken && { "X-XSRF-TOKEN": xsrfToken }),
     },
   };
+
   if (body) options.body = JSON.stringify(body);
 
   let response;
   try {
-    response = await fetch(`${BASE_URL}${endpoint}`, options);
-  } catch {
+    response = await fetchWithTimeout(`${BASE_URL}${endpoint}`, options);
+  } catch (err) {
+    // AbortError = timeout
+    if (err.name === "AbortError") {
+      throw { message: "Request timeout. Network slow hai ya server down hai." };
+    }
     throw { message: "Server se connection nahi ho pa raha." };
   }
 
@@ -48,7 +67,7 @@ export const loginUser    = async (body) => { await initCsrf(); return apiCall("
 export const logoutUser   = ()           => apiCall("/logout", "POST");
 export const getMe        = ()           => apiCall("/me");
 
-// ✅ Users — search optional hai
+// Users
 export const getUsers = (search = "") =>
   apiCall(`/users${search ? `?search=${encodeURIComponent(search)}` : ""}`);
 

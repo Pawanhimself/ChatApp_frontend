@@ -5,37 +5,39 @@ import ChatDashboard from "./components/ChatDashboard";
 import { getMe, logoutUser } from "./services/api";
 
 export default function App() {
-  const [page, setPage]       = useState("loading");
-  const [user, setUser]       = useState(null);
+  const [page, setPage]         = useState("loading");
+  const [user, setUser]         = useState(null);
   const [authView, setAuthView] = useState("login");
 
   useEffect(() => {
     const initAuth = async () => {
       try {
-        // Cookie hai toh /me kaam karega, nahi hai toh 401 aayega
-        // localStorage check karne ki zarurat nahi — cookie browser khud manage karta hai
-        const data = await getMe();
+        // ✅ Timeout add kiya — 5 sec mein response nahi aaya toh auth page dikhao
+        // Mobile pe loading forever rukne ki wajah yahi thi
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("timeout")), 5000)
+        );
+
+        const data = await Promise.race([getMe(), timeoutPromise]);
         setUser(data);
         setPage("chat");
       } catch {
+        // Koi bhi error — 401, timeout, network — auth page dikhao
         setPage("auth");
       }
     };
+
     initAuth();
   }, []);
 
   const handleLoginSuccess = (data) => {
-    // Sirf user state save karo — token store karne ki zarurat nahi
     setUser(data.user);
     setPage("chat");
   };
 
   const handleLogout = async () => {
-    try {
-      await logoutUser(); // Laravel session destroy karega, cookie clear karega
-    } catch {
-      // Kuch bhi ho — logout toh karo
-    } finally {
+    try { await logoutUser(); } catch {}
+    finally {
       setUser(null);
       setAuthView("login");
       setPage("auth");

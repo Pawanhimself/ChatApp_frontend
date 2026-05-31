@@ -3,13 +3,13 @@ import {
   getChats, getChatMessages, sendMessage,
   logoutUser, getUsers, createChat,
 } from "../services/api";
+import echo from "../echo";
 
 // ─── Helpers ──────────────────────────────────────────────────────
 const formatTime = (iso) => {
   if (!iso) return "";
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 };
-
 const formatSidebarTime = (iso) => {
   if (!iso) return "";
   const d = new Date(iso);
@@ -24,7 +24,6 @@ const COLORS = [
   "bg-violet-600","bg-blue-600","bg-emerald-600",
   "bg-rose-600","bg-amber-600","bg-cyan-600","bg-pink-600",
 ];
-
 const Avatar = ({ name, size = "md", online = false }) => {
   const initials = name
     ? name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()
@@ -57,7 +56,7 @@ const CloseIcon  = () => <Icon path="M6 18L18 6M6 6l12 12" className="w-5 h-5" /
 const PlusIcon   = () => <Icon path="M12 4v16m8-8H4" className="w-5 h-5" />;
 const CheckIcon  = () => <Icon path="M5 13l4 4L19 7" className="w-4 h-4" />;
 
-// ─── Sidebar Chat Item ────────────────────────────────────────────
+// ─── Chat Item ────────────────────────────────────────────────────
 const ChatItem = ({ chat, isActive, onClick }) => (
   <button
     onClick={onClick}
@@ -130,23 +129,17 @@ const NewChatModal = ({ onClose, onChatCreated }) => {
 
   const loadUsers = async (q = "") => {
     setLoading(true);
-    try {
-      const data = await getUsers(q);
-      setUsers(data);
-    } catch {
-      setUsers([]);
-    } finally {
-      setLoading(false);
-    }
+    try { setUsers(await getUsers(q)); }
+    catch { setUsers([]); }
+    finally { setLoading(false); }
   };
 
   const handleStart = async () => {
     if (!selected || creating) return;
     setCreating(true);
     try {
-      // ✅ Server se formatted chat aata hai ab — chat_name sahi hoga
       const chat = await createChat({ user_id: selected.id, is_group: false });
-      onChatCreated(chat); // seedha server response use karo
+      onChatCreated(chat);
       onClose();
     } catch {
       // silent
@@ -162,8 +155,6 @@ const NewChatModal = ({ onClose, onChatCreated }) => {
     >
       <div className="bg-zinc-900 border border-zinc-700/60 rounded-2xl w-full max-w-sm shadow-2xl flex flex-col overflow-hidden"
         style={{ maxHeight: "80vh" }}>
-
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
           <div>
             <h2 className="text-base font-semibold text-zinc-100">New Chat</h2>
@@ -174,41 +165,23 @@ const NewChatModal = ({ onClose, onChatCreated }) => {
             <CloseIcon />
           </button>
         </div>
-
-        {/* Search */}
         <div className="px-4 pt-4 pb-2">
           <div className="flex items-center gap-2 bg-zinc-800 rounded-xl px-3 py-2.5">
             <span className="text-zinc-500 shrink-0"><SearchIcon /></span>
-            <input
-              ref={inputRef}
-              type="text"
-              placeholder="Naam ya email se dhundo..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="bg-transparent text-sm text-zinc-200 placeholder-zinc-500 outline-none w-full"
-            />
-            {search && (
-              <button onClick={() => setSearch("")} className="text-zinc-600 hover:text-zinc-400">
-                <CloseIcon />
-              </button>
-            )}
+            <input ref={inputRef} type="text" placeholder="Naam ya email se dhundo..."
+              value={search} onChange={(e) => setSearch(e.target.value)}
+              className="bg-transparent text-sm text-zinc-200 placeholder-zinc-500 outline-none w-full" />
           </div>
         </div>
-
-        {/* Selected preview */}
         {selected && (
           <div className="px-4 py-2">
             <div className="flex items-center gap-2 bg-indigo-600/20 border border-indigo-500/30 rounded-xl px-3 py-2">
               <Avatar name={selected.name} size="sm" />
               <span className="text-sm text-indigo-300 font-medium flex-1">{selected.name}</span>
-              <button onClick={() => setSelected(null)} className="text-indigo-400 hover:text-indigo-200">
-                <CloseIcon />
-              </button>
+              <button onClick={() => setSelected(null)} className="text-indigo-400 hover:text-indigo-200"><CloseIcon /></button>
             </div>
           </div>
         )}
-
-        {/* Users list */}
         <div className="flex-1 overflow-y-auto px-2 py-1">
           {loading ? (
             <div className="space-y-1 p-2 animate-pulse">
@@ -228,20 +201,17 @@ const NewChatModal = ({ onClose, onChatCreated }) => {
             </div>
           ) : (
             users.map((u) => {
-              const isSelected = selected?.id === u.id;
+              const isSel = selected?.id === u.id;
               return (
-                <button
-                  key={u.id}
-                  onClick={() => setSelected(isSelected ? null : u)}
+                <button key={u.id} onClick={() => setSelected(isSel ? null : u)}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left
-                    ${isSelected ? "bg-indigo-600/20" : "hover:bg-zinc-800/60"}`}
-                >
+                    ${isSel ? "bg-indigo-600/20" : "hover:bg-zinc-800/60"}`}>
                   <Avatar name={u.name} size="sm" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-zinc-200 truncate">{u.name}</p>
                     <p className="text-xs text-zinc-500 truncate">{u.email}</p>
                   </div>
-                  {isSelected && (
+                  {isSel && (
                     <div className="w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center shrink-0">
                       <CheckIcon />
                     </div>
@@ -251,27 +221,16 @@ const NewChatModal = ({ onClose, onChatCreated }) => {
             })
           )}
         </div>
-
-        {/* Footer */}
         <div className="px-4 py-4 border-t border-zinc-800">
-          <button
-            onClick={handleStart}
-            disabled={!selected || creating}
+          <button onClick={handleStart} disabled={!selected || creating}
             className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40
               disabled:cursor-not-allowed text-white font-semibold text-sm rounded-xl
               transition-all flex items-center justify-center gap-2
-              hover:shadow-lg hover:shadow-indigo-600/25 active:scale-95"
-          >
+              hover:shadow-lg hover:shadow-indigo-600/25 active:scale-95">
             {creating
               ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              : <PlusIcon />
-            }
-            {creating
-              ? "Chat ban rahi hai..."
-              : selected
-                ? `${selected.name} se chat karo`
-                : "Pehle koi user select karo"
-            }
+              : <PlusIcon />}
+            {creating ? "Chat ban rahi hai..." : selected ? `${selected.name} se chat karo` : "Pehle koi user select karo"}
           </button>
         </div>
       </div>
@@ -296,24 +255,56 @@ export default function ChatDashboard({ user, onLogout }) {
   const inputRef       = useRef(null);
   const textareaRef    = useRef(null);
 
-  // ── Load chats on mount — refresh ke baad bhi sab aayega
+  // ── Chats load karo
   useEffect(() => {
     getChats()
-      .then((data) => setChats(data))
+      .then(setChats)
       .catch(() => {})
       .finally(() => setLoadingChats(false));
   }, []);
 
-  // ── Load messages jab active chat change ho
+  // ── Messages load karo + WebSocket subscribe karo
   useEffect(() => {
     if (!activeChat) return;
+
+    // Messages load karo
     setLoadingMsgs(true);
     setMessages([]);
     getChatMessages(activeChat.chat_id)
       .then((res) => setMessages(res.data ?? res))
       .catch(() => {})
       .finally(() => setLoadingMsgs(false));
+
+    // ✅ Reverb: Private channel subscribe karo
+    // Jab bhi koi doosra user message bheje — yahan aayega
+    const channel = echo.private(`chat.${activeChat.chat_id}`);
+
+    channel.listen('.message.sent', (data) => {
+      // Naya message aaya — state mein add karo
+      setMessages((prev) => {
+        // Duplicate check — agar already hai toh mat add karo
+        const exists = prev.some((m) => m.id === data.id);
+        if (exists) return prev;
+        return [...prev, data];
+      });
+
+      // Sidebar mein last message update karo
+      setChats((prev) =>
+        prev.map((c) =>
+          c.chat_id === activeChat.chat_id
+            ? { ...c, last_message: data.message, last_message_time: data.created_at }
+            : c
+        )
+      );
+    });
+
     inputRef.current?.focus();
+
+    // ✅ Cleanup — chat change hone par channel chhodo
+    // Warna purane channels pe bhi listen hota rahega
+    return () => {
+      echo.leave(`chat.${activeChat.chat_id}`);
+    };
   }, [activeChat]);
 
   // ── Scroll to bottom
@@ -342,13 +333,13 @@ export default function ChatDashboard({ user, onLogout }) {
     try {
       const res = await sendMessage({ chat_id: activeChat.chat_id, message: text });
       const saved = res.data ?? res;
+      // Optimistic message ko real se replace karo
       setMessages((p) =>
         p.map((m) => m.id === optimistic.id
           ? { ...saved, sender: { id: user.id, name: user.name } }
           : m
         )
       );
-      // Sidebar mein last message update karo
       setChats((p) =>
         p.map((c) => c.chat_id === activeChat.chat_id
           ? { ...c, last_message: text, last_message_time: new Date().toISOString() }
@@ -369,14 +360,10 @@ export default function ChatDashboard({ user, onLogout }) {
     }
   };
 
-  // ── New chat create hone ke baad
-  // Server se properly formatted chat aata hai ab
-  // Agar chat already list mein hai (same chat_id) toh duplicate nahi hoga
   const handleChatCreated = (newChat) => {
     setChats((prev) => {
       const exists = prev.find((c) => c.chat_id === newChat.chat_id);
-      if (exists) return prev; // already hai — kuch mat karo
-      return [newChat, ...prev]; // naya hai — upar add karo
+      return exists ? prev : [newChat, ...prev];
     });
     setActiveChat(newChat);
     setSidebarOpen(false);
@@ -401,7 +388,6 @@ export default function ChatDashboard({ user, onLogout }) {
         absolute inset-y-0 left-0 md:relative md:translate-x-0
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
       `}>
-        {/* Header */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-zinc-800/60">
           <div className="flex items-center gap-3 min-w-0">
             <Avatar name={user?.name} online />
@@ -412,41 +398,29 @@ export default function ChatDashboard({ user, onLogout }) {
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <button onClick={() => setShowNewChat(true)}
-              className="p-2 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-all"
-              title="New Chat">
+              className="p-2 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-all" title="New Chat">
               <PlusIcon />
             </button>
             <button onClick={handleLogout}
-              className="p-2 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-all"
-              title="Logout">
+              className="p-2 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-all" title="Logout">
               <LogoutIcon />
             </button>
           </div>
         </div>
 
-        {/* Search */}
         <div className="px-3 py-3">
           <div className="flex items-center gap-2 bg-zinc-800 rounded-xl px-3 py-2">
             <span className="text-zinc-500 shrink-0"><SearchIcon /></span>
-            <input
-              type="text"
-              placeholder="Chats search karo..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="bg-transparent text-sm text-zinc-200 placeholder-zinc-500 outline-none w-full"
-            />
+            <input type="text" placeholder="Chats search karo..."
+              value={search} onChange={(e) => setSearch(e.target.value)}
+              className="bg-transparent text-sm text-zinc-200 placeholder-zinc-500 outline-none w-full" />
           </div>
         </div>
 
-        {/* Chat list */}
         <div className="flex-1 overflow-y-auto px-2 space-y-0.5 pb-4">
-          {loadingChats ? (
-            <SidebarSkeleton />
-          ) : filteredChats.length === 0 ? (
+          {loadingChats ? <SidebarSkeleton /> : filteredChats.length === 0 ? (
             <div className="text-center py-10">
-              <p className="text-zinc-500 text-sm">
-                {search ? "Koi chat nahi mili" : "Koi chat nahi hai abhi"}
-              </p>
+              <p className="text-zinc-500 text-sm">{search ? "Koi chat nahi mili" : "Koi chat nahi hai abhi"}</p>
               {!search && (
                 <button onClick={() => setShowNewChat(true)}
                   className="mt-3 text-indigo-400 text-sm hover:text-indigo-300 transition-colors font-medium">
@@ -456,27 +430,20 @@ export default function ChatDashboard({ user, onLogout }) {
             </div>
           ) : (
             filteredChats.map((chat) => (
-              <ChatItem
-                key={chat.chat_id}
-                chat={chat}
+              <ChatItem key={chat.chat_id} chat={chat}
                 isActive={activeChat?.chat_id === chat.chat_id}
-                onClick={() => { setActiveChat(chat); setSidebarOpen(false); }}
-              />
+                onClick={() => { setActiveChat(chat); setSidebarOpen(false); }} />
             ))
           )}
         </div>
       </aside>
 
-      {/* Mobile overlay */}
       {sidebarOpen && (
-        <div className="md:hidden fixed inset-0 bg-black/50 z-10"
-          onClick={() => setSidebarOpen(false)} />
+        <div className="md:hidden fixed inset-0 bg-black/50 z-10" onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* ── MAIN AREA ────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col min-w-0">
-
-        {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3.5 border-b border-zinc-800/60 bg-zinc-900/60 backdrop-blur shrink-0">
           <button onClick={() => setSidebarOpen(true)}
             className="md:hidden p-2 rounded-lg text-zinc-400 hover:bg-zinc-800 transition-all">
@@ -498,7 +465,6 @@ export default function ChatDashboard({ user, onLogout }) {
           )}
         </div>
 
-        {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
           {!activeChat ? (
             <div className="h-full flex flex-col items-center justify-center gap-4 text-center">
@@ -534,14 +500,12 @@ export default function ChatDashboard({ user, onLogout }) {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input */}
         {activeChat && (
           <div className="px-4 py-3 border-t border-zinc-800/60 bg-zinc-900/60 backdrop-blur shrink-0">
             <div className="flex items-end gap-3 bg-zinc-800 rounded-2xl px-4 py-3">
               <textarea
                 ref={(el) => { inputRef.current = el; textareaRef.current = el; }}
-                rows={1}
-                value={input}
+                rows={1} value={input}
                 onChange={(e) => {
                   setInput(e.target.value);
                   e.target.style.height = "auto";
@@ -552,13 +516,10 @@ export default function ChatDashboard({ user, onLogout }) {
                 className="flex-1 bg-transparent text-sm text-zinc-100 placeholder-zinc-500 outline-none resize-none leading-relaxed"
                 style={{ maxHeight: "120px" }}
               />
-              <button
-                onClick={handleSend}
-                disabled={!input.trim() || sending}
+              <button onClick={handleSend} disabled={!input.trim() || sending}
                 className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40
                   disabled:cursor-not-allowed text-white transition-all shrink-0
-                  hover:shadow-lg hover:shadow-indigo-600/25 active:scale-95"
-              >
+                  hover:shadow-lg hover:shadow-indigo-600/25 active:scale-95">
                 <SendIcon />
               </button>
             </div>
@@ -569,12 +530,8 @@ export default function ChatDashboard({ user, onLogout }) {
         )}
       </main>
 
-      {/* Modal */}
       {showNewChat && (
-        <NewChatModal
-          onClose={() => setShowNewChat(false)}
-          onChatCreated={handleChatCreated}
-        />
+        <NewChatModal onClose={() => setShowNewChat(false)} onChatCreated={handleChatCreated} />
       )}
     </div>
   );
