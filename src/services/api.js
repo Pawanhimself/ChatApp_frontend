@@ -1,8 +1,11 @@
-const BASE_URL = import.meta.env.VITE_API_URL ?? "http://10.134.38.199:8000/api";
-const APP_URL  = import.meta.env.VITE_APP_URL  ?? "http://10.134.38.199:8000";
+const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api";
 
-// ✅ AbortController se fetch timeout implement karo
-// Mobile pe slow network mein request hang nahi karegi
+// ✅ Token helpers
+const getToken = () => localStorage.getItem('token');
+export const setToken = (token) => localStorage.setItem('token', token);
+export const removeToken = () => localStorage.removeItem('token');
+
+// ✅ Timeout fetch
 const fetchWithTimeout = (url, options = {}, ms = 8000) => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
@@ -10,35 +13,16 @@ const fetchWithTimeout = (url, options = {}, ms = 8000) => {
     .finally(() => clearTimeout(timer));
 };
 
-export const initCsrf = async () => {
-  try {
-    await fetchWithTimeout(`${APP_URL}/sanctum/csrf-cookie`, {
-      method: "GET",
-      credentials: "include",
-    });
-  } catch {
-    // CSRF fail ho toh bhi aage chalo — request mein error aayega tab handle karenge
-  }
-};
-
-const getXsrfToken = () => {
-  const match = document.cookie
-    .split("; ")
-    .find((row) => row.startsWith("XSRF-TOKEN="));
-  if (!match) return null;
-  return decodeURIComponent(match.split("=")[1]);
-};
-
 const apiCall = async (endpoint, method = "GET", body = null) => {
-  const xsrfToken = getXsrfToken();
+  const token = getToken();
 
   const options = {
     method,
-    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       "Accept": "application/json",
-      ...(xsrfToken && { "X-XSRF-TOKEN": xsrfToken }),
+      // ✅ Token hai toh Bearer header add karo
+      ...(token && { "Authorization": `Bearer ${token}` }),
     },
   };
 
@@ -48,7 +32,6 @@ const apiCall = async (endpoint, method = "GET", body = null) => {
   try {
     response = await fetchWithTimeout(`${BASE_URL}${endpoint}`, options);
   } catch (err) {
-    // AbortError = timeout
     if (err.name === "AbortError") {
       throw { message: "Request timeout. Network slow hai ya server down hai." };
     }
@@ -61,11 +44,26 @@ const apiCall = async (endpoint, method = "GET", body = null) => {
   return data;
 };
 
-// Auth
-export const registerUser = async (body) => { await initCsrf(); return apiCall("/register", "POST", body); };
-export const loginUser    = async (body) => { await initCsrf(); return apiCall("/login",    "POST", body); };
-export const logoutUser   = ()           => apiCall("/logout", "POST");
-export const getMe        = ()           => apiCall("/me");
+// Auth — token save/remove karo
+export const registerUser = async (body) => {
+  const res = await apiCall("/register", "POST", body);
+  if (res?.token) setToken(res.token);
+  return res;
+};
+
+export const loginUser = async (body) => {
+  const res = await apiCall("/login", "POST", body);
+  if (res?.token) setToken(res.token);
+  return res;
+};
+
+export const logoutUser = async () => {
+  await apiCall("/logout", "POST");
+  removeToken();
+  localStorage.removeItem('user');
+};
+
+export const getMe  = () => apiCall("/me");
 
 // Users
 export const getUsers = (search = "") =>
